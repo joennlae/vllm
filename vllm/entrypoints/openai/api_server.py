@@ -321,7 +321,7 @@ async def create_chat_completion(request: ChatCompletionRequest,
                                                  created=created_time,
                                                  choices=[choice_data],
                                                  model=model_name)
-            data = chunk.json(exclude_unset=True, ensure_ascii=False)
+            data = chunk.model_dump_json(exclude_unset=True)
             yield f"data: {data}\n\n"
 
         # Send response to echo the input portion of the last message
@@ -344,7 +344,7 @@ async def create_chat_completion(request: ChatCompletionRequest,
                         created=created_time,
                         choices=[choice_data],
                         model=model_name)
-                    data = chunk.json(exclude_unset=True, ensure_ascii=False)
+                    data = chunk.model_dump_json(exclude_unset=True)
                     yield f"data: {data}\n\n"
 
         # Send response for each token for each request.n (index)
@@ -374,7 +374,7 @@ async def create_chat_completion(request: ChatCompletionRequest,
                         created=created_time,
                         choices=[choice_data],
                         model=model_name)
-                    data = chunk.json(exclude_unset=True, ensure_ascii=False)
+                    data = chunk.model_dump_json(exclude_unset=True)
                     yield f"data: {data}\n\n"
                 else:
                     # Send the finish response for each request.n only once
@@ -394,9 +394,8 @@ async def create_chat_completion(request: ChatCompletionRequest,
                         model=model_name)
                     if final_usage is not None:
                         chunk.usage = final_usage
-                    data = chunk.json(exclude_unset=True,
-                                      exclude_none=True,
-                                      ensure_ascii=False)
+                    data = chunk.model_dump_json(exclude_unset=True,
+                                      exclude_none=True)
                     yield f"data: {data}\n\n"
                     finish_reason_sent[i] = True
         # Send the final done message after all response.n are finished
@@ -581,10 +580,11 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
             created=created_time,
             model=model_name,
             choices=[choice_data],
+            usage=usage
         )
         if usage is not None:
             response.usage = usage
-        response_json = response.json(exclude_unset=True, ensure_ascii=False)
+        response_json = response.model_dump_json(exclude_unset=True)
 
         return response_json
 
@@ -724,7 +724,7 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
     if request.stream:
         # When user requests streaming but we don't stream, we still need to
         # return a streaming response with a single event.
-        response_json = response.json(ensure_ascii=False)
+        response_json = response.model_dump_json()
 
         async def fake_stream_generator() -> AsyncGenerator[str, None]:
             yield f"data: {response_json}\n\n"
