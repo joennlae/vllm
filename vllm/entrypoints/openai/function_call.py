@@ -62,28 +62,33 @@ class OpenAIToolsPrompter:
         ):
             tools_list: [ChatCompletionToolParam] = request.tools
             if len(tools_list):
-                text_inject = (
-                    "Your task is to call a function when needed. "
-                    "You will be provided with a list of functions. "
-                    "\n\nAvailable functions:\n"
-                )
+                text_inject = "The following is a list of external functions that may be called to complete certain tasks:"
+                text_inject += "\n["
                 for tool in tools_list:
                     if tool.type == "function":
-                        text_inject += "\n" + tool.function.name
-                        if tool.function.description is not None:
-                            text_inject += " - " + tool.function.description
-                        if tool.function.parameters is not None:
-                            schema = json.dumps(tool.function.parameters, indent=4)
-                            text_inject += f"```\njsonschema\n{schema}\n```"
+                        json_schema_params = (
+                            json.dumps(tool.function.parameters, indent=4)
+                            if (
+                                tool.function.parameters is not None
+                                and len(tool.function.parameters)
+                            )
+                            else None
+                        )
+                        if json_schema_params is not None:
+                            text_inject += f'\n  {{"name": "{tool.function.name}", "description": "{tool.function.description}", "arguments": {json_schema_params}]}},'
+                        else:
+                            text_inject += f'\n  {{"name": "{tool.function.name}", "description": "{tool.function.description}", "arguments": null]}},'
+                text_inject += "\n]\n"
                 text_inject += (
-                    f"\nTo call a function, the response must start by"
-                    f'"{self.func_call_token()} followed by a json like this: '
-                    f'{{"call": "function_name", "params": {{"arg1": "value1"}}}}.\n'
-                    "If you cannot call a function due to lack of information, "
-                    "do not make a function call and ask the user for additional details."
-                    f"If you can call a function, you don't explain anything, just do the call. "
-                    f"You only call functions when it's needed and when the description matches with the user input. "
-                    f"After a function call, the response must terminate immediately.\n\n"
+                    f"Whenever the user asks you something, you can either respond directly or invoke a function. "
+                    f"The decision to invoke a function is yours, only invoke functions when it makes sense to do so.\n"
+                    f"If you have to call at least one function, your message can contain only function calls and nothing else.\n"
+                    f'To call a function, the message must start by "{self.func_call_token()}" followed by a json like this:\n'
+                    f"With arguments:\n"
+                    f'  {self.func_call_token()}{{"call": "function_name", "arguments": {{"arg1": "value1"}}}}.\n'
+                    f"Without arguments:\n"
+                    f'  {self.func_call_token()}{{"call": "function_name", "arguments": null}}.\n'
+                    f"End of functions instructions.\n\n"
                 )
                 if isinstance(request.messages, str):
                     request.messages = text_inject + request.messages
@@ -96,13 +101,24 @@ class OpenAIToolsPrompter:
 class PromptCapture:
     def __init__(self):
         self.content: str = ""
-        self.ignore = False
+        self.maybe_function_call = False
         self.is_function_call = False
-        self.calls_list: list[dict] = None
+        self.prefix_size = 0
+        self.calls_list: list[dict] = []
+
+    def reset(self, reset_calls_list=False):
+        self.content = ""
+        self.maybe_function_call = False
+        self.is_function_call = False
+        self.prefix_size = 0
+        if reset_calls_list:
+            self.calls_list = []
+
+    def num_calls(self):
+        return len(self.calls_list)
 
     def make_calls_list(self, prompter: OpenAIToolsPrompter):
         calls_list = self.content.split(prompter.func_call_token())
-        self.calls_list = []
         for v_call in calls_list:
             if len(v_call):
                 try:
@@ -113,25 +129,21 @@ class PromptCapture:
                     # Simply ignore invalid functions calls...
                     pass
 
-    def num_calls(self):
-        return len(self.calls_list) if self.calls_list is not None else 0
-
-    def calls_validation(self, tools_list: [str]) -> bool:
-        """Validate function / tool calls by searching name in the tools defined in the request."""
-        if self.calls_list is not None:
-            for ic in range(len(self.calls_list)):
-                if self.calls_list[ic]["call"] in tools_list:
-                    pass
-                else:
-                    return False
-            return True
-        return False
+    def validate_call(self, call_id: int, tools_list: [str]) -> int:
+        """Validate function / tool calls by searching name in the tools defined in the request.
+        Returns the function id or -1 on failure."""
+        if len(self.calls_list) and call_id < len(self.calls_list):
+            try:
+                return tools_list.index(self.calls_list[call_id]["call"])
+            except ValueError:
+                pass
+        return -1
 
     def to_tool_call_message(
-        self, func_id: int
+        self, call_id: int
     ) -> Union[ChatCompletionMessageToolCall, None]:
         if self.calls_list is not None:
-            call = self.calls_list[func_id]
+            call = self.calls_list[call_id]
             arguments = call["params"] if "params" in call else None
             function_call = Function(name=call["call"], arguments=json.dumps(arguments))
             return ChatCompletionMessageToolCall(
@@ -140,9 +152,9 @@ class PromptCapture:
         return None
 
     def to_tool_call_delta(
-        self, index: int, func_id: int
+        self, index: int, call_id: int
     ) -> Union[ChoiceDeltaToolCall, None]:
-        mesg = self.to_tool_call_message(func_id)
+        mesg = self.to_tool_call_message(call_id)
         if mesg is not None:
             return ChoiceDeltaToolCall(
                 index=index, id=mesg.id, type=mesg.type, function=mesg.function
