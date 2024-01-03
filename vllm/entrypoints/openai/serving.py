@@ -296,7 +296,7 @@ class OpenAIServing:
                                                  created=created_time,
                                                  choices=[choice_data],
                                                  model=model_name)
-            data = chunk.json(exclude_unset=True, ensure_ascii=False)
+            data = chunk.model_dump_json(exclude_unset=True)
             yield f"data: {data}\n\n"
 
         # Send response to echo the input portion of the last message
@@ -319,7 +319,7 @@ class OpenAIServing:
                         created=created_time,
                         choices=[choice_data],
                         model=model_name)
-                    data = chunk.json(exclude_unset=True, ensure_ascii=False)
+                    data = chunk.model_dump(exclude_unset=True)
                     yield f"data: {data}\n\n"
 
         tools_capture_texts = None
@@ -393,9 +393,8 @@ class OpenAIServing:
                                         model=model_name)
                                     if final_usage is not None:
                                         chunk.usage = final_usage
-                                    data = chunk.json(exclude_unset=True,
-                                                      exclude_none=True,
-                                                      ensure_ascii=False)
+                                    data = chunk.model_dump_json(exclude_unset=True,
+                                                      exclude_none=True)
                                     yield f"data: {data}\n\n"
                                 finish_reason_sent[i] = True
                                 current_capture.ignore = True
@@ -421,8 +420,7 @@ class OpenAIServing:
                             created=created_time,
                             choices=[choice_data],
                             model=model_name)
-                        data = chunk.json(exclude_unset=True,
-                                          ensure_ascii=False)
+                        data = chunk.model_dump_json(exclude_unset=True)
                         yield f"data: {data}\n\n"
                     else:
                         # Send the finish response for each request.n only once
@@ -445,9 +443,8 @@ class OpenAIServing:
                             model=model_name)
                         if final_usage is not None:
                             chunk.usage = final_usage
-                        data = chunk.json(exclude_unset=True,
-                                          exclude_none=True,
-                                          ensure_ascii=False)
+                        data = chunk.model_dump_json(exclude_unset=True,
+                                          exclude_none=True)
                         yield f"data: {data}\n\n"
                         finish_reason_sent[i] = True
         # Send the final done message after all response.n are finished
@@ -676,8 +673,7 @@ class OpenAIServing:
             )
             if usage is not None:
                 response.usage = usage
-            response_json = response.json(exclude_unset=True,
-                                          ensure_ascii=False)
+            response_json = response.model_dump_json(exclude_unset=True)
 
             return response_json
 
@@ -815,7 +811,7 @@ class OpenAIServing:
         if request.stream:
             # When user requests streaming but we don't stream, we still need to
             # return a streaming response with a single event.
-            response_json = response.json(ensure_ascii=False)
+            response_json = response.model_dump_json()
 
             async def fake_stream_generator() -> AsyncGenerator[str, None]:
                 yield f"data: {response_json}\n\n"
@@ -877,7 +873,7 @@ class OpenAIServing:
     ) -> AsyncGenerator[str, None]:
         yield ErrorResponse(message=message,
                             type=err_type,
-                            code=status_code.value).json(ensure_ascii=False)
+                            code=status_code.value).model_dump_json()
 
     async def _check_model(self, request) -> Optional[ErrorResponse]:
         if request.model == self.served_model:

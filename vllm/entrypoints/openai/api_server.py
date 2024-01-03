@@ -97,7 +97,7 @@ async def health() -> Response:
 @app.get("/v1/models")
 async def show_available_models():
     models = await openai_serving.show_available_models()
-    return JSONResponse(content=models.dict())
+    return JSONResponse(content=models.model_dump_json())
     pass
 
 
@@ -110,7 +110,7 @@ async def create_chat_completion(request: ChatCompletionRequest,
         return StreamingResponse(content=generator,
                                  media_type="text/event-stream")
     else:
-        return JSONResponse(content=generator.dict())
+        return JSONResponse(content=generator.model_dump_json())
 
 
 @app.post("/v1/completions")
@@ -120,7 +120,7 @@ async def create_completion(request: CompletionRequest, raw_request: Request):
         return StreamingResponse(content=generator,
                                  media_type="text/event-stream")
     else:
-        return JSONResponse(content=generator.dict())
+        return JSONResponse(content=generator.model_dump_json())
 
 
 if __name__ == "__main__":
