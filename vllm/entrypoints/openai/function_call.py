@@ -62,40 +62,43 @@ class OpenAIToolsPrompter:
         ):
             tools_list: [ChatCompletionToolParam] = request.tools
             if len(tools_list):
-                text_inject = "The following is a list of external functions that may be called to complete certain tasks:"
-                text_inject += "\n["
+                if isinstance(request.messages, str):
+                    current_request = request.messages
+                elif isinstance(request.messages, list) and len(request.messages) >= 1:
+                    current_request = request.messages[0].content
+                text_inject = "The question to be answered is the following:\n"
+                text_inject += current_request + "\n"
+                text_inject += (
+                    "You are given data repositories to help you answer the question.\n"
+                )
+                text_inject += (
+                    "The data repositories are given in the following format:\n"
+                )
+                text_inject += '    "repository_name": "A short description of the data that is in the specific repository."\n'
+                text_inject += "The repositories available are the following:\n"
+                text_inject += "\n\n"
                 for tool in tools_list:
                     if tool.type == "function":
-                        json_schema_params = (
-                            json.dumps(tool.function.parameters, indent=4)
-                            if (
-                                tool.function.parameters is not None
-                                and len(tool.function.parameters)
-                            )
-                            else None
-                        )
-                        if json_schema_params is not None:
-                            text_inject += f'\n  {{"name": "{tool.function.name}", "description": "{tool.function.description}", "arguments": {json_schema_params}]}},'
-                        else:
-                            text_inject += f'\n  {{"name": "{tool.function.name}", "description": "{tool.function.description}", "arguments": null]}},'
-                text_inject += "\n]\n"
+                        text_inject += f'    "{tool.function.name}": "{tool.function.description}"\n'
+                text_inject += "\n\n"
                 text_inject += (
-                    f"Whenever the user asks you something, you can either respond directly or invoke a function. "
-                    f"The decision to invoke a function is yours, only invoke functions when it makes sense to do so.\n"
-                    f"If you have to call at least one function, your message can contain only function calls and nothing else.\n"
-                    f'To call a function, the message must start by "{self.func_call_token()}" followed by a json like this:\n'
-                    f"With arguments:\n"
-                    f'  {self.func_call_token()}{{"call": "function_name", "arguments": {{"arg1": "value1"}}}}.\n'
-                    f"Without arguments:\n"
-                    f'  {self.func_call_token()}{{"call": "function_name", "arguments": null}}.\n'
-                    f"End of functions instructions.\n\n"
+                    f"You can either answer directly or select one or multiple of the repositories above.\n"
+                    f"You need to call a at least one data repository you can either forward the question to be answered or reformulate to fit it better to the data repository.\n"
+                    f'To call a data repository, the message must start by "{self.func_call_token()}" followed by the name and the question like this:\n'
+                    f'  {self.func_call_token()}"repository_name": "A more specific question based on the question to be answered?"\n'
+                    f"End of data repository instructions.\n"
+                    f"Be sure to call at least one data repository.\n"
+                    f"Be very short and concise in your answer. An answer template is like this: \n"
+                    "=========\n"
+                    f"I would call the following data repositories with the following questions:\n"
+                    f'  {self.func_call_token()}"repository_name": "A more specific question based on the question to be answered?"\n'
+                    "=========\n"
+                    f"Do not write anything else than the answer template above.\n"
                 )
                 if isinstance(request.messages, str):
-                    request.messages = text_inject + request.messages
+                    request.messages = text_inject
                 elif isinstance(request.messages, list) and len(request.messages) >= 1:
-                    request.messages[0].content = (
-                        text_inject + request.messages[0].content
-                    )
+                    request.messages[0].content = text_inject
 
 
 class PromptCapture:
