@@ -4,9 +4,9 @@ from vllm.logger import init_logger
 from vllm.entrypoints.openai.protocol import (
     ChatCompletionRequest,
     ChatCompletionToolParam,
-    ToolCallsDelta,
-    ToolCallsMessage,
-    FunctionCall,
+    ChoiceDeltaToolCall,
+    ChatCompletionMessageToolCall,
+    Function,
     ChatCompletionAssistantMessage,
     ChatCompletionToolMessage,
 )
@@ -127,24 +127,24 @@ class PromptCapture:
             return True
         return False
 
-    def to_tool_call_message(self, func_id: int) -> Union[ToolCallsMessage, None]:
+    def to_tool_call_message(
+        self, func_id: int
+    ) -> Union[ChatCompletionMessageToolCall, None]:
         if self.calls_list is not None:
             call = self.calls_list[func_id]
             arguments = call["params"] if "params" in call else None
-            function_call = FunctionCall(
-                name=call["call"], arguments=json.dumps(arguments)
-            )
-            return ToolCallsMessage(
+            function_call = Function(name=call["call"], arguments=json.dumps(arguments))
+            return ChatCompletionMessageToolCall(
                 id="call_" + call["call"], type="function", function=function_call
             )
         return None
 
     def to_tool_call_delta(
         self, index: int, func_id: int
-    ) -> Union[ToolCallsDelta, None]:
+    ) -> Union[ChoiceDeltaToolCall, None]:
         mesg = self.to_tool_call_message(func_id)
         if mesg is not None:
-            return ToolCallsDelta(
+            return ChoiceDeltaToolCall(
                 index=index, id=mesg.id, type=mesg.type, function=mesg.function
             )
         return None

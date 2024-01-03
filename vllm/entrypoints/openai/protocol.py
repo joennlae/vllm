@@ -52,18 +52,18 @@ class UsageInfo(BaseModel):
     completion_tokens: Optional[int] = 0
 
 
-class FunctionCall(BaseModel):
+class Function(BaseModel):
     name: str
     arguments: str
 
 
-class ToolCallsMessage(BaseModel):
+class ChatCompletionMessageToolCall(BaseModel):
     id: str
     type: str
-    function: FunctionCall
+    function: Function
 
 
-class ChatCompletionFunctionDef(BaseModel):
+class FunctionDefinition(BaseModel):
     name: str
     description: str
     parameters: Optional[Any] = None
@@ -72,7 +72,7 @@ class ChatCompletionFunctionDef(BaseModel):
 
 class ChatCompletionToolParam(BaseModel):
     type: str = "function"
-    function: ChatCompletionFunctionDef = None
+    function: FunctionDefinition = None
 
 
 class ChatCompletionSystemMessage(BaseModel):
@@ -91,7 +91,7 @@ class ChatCompletionAssistantMessage(BaseModel):
     role: Literal["assistant"]
     content: Optional[str] = None
     name: Optional[str] = None
-    tool_calls: Optional[list[ToolCallsMessage]] = None
+    tool_calls: Optional[list[ChatCompletionMessageToolCall]] = None
 
 
 class ChatCompletionToolMessage(BaseModel):
@@ -207,7 +207,7 @@ class CompletionStreamResponse(BaseModel):
 class ChatMessage(BaseModel):
     role: str
     content: Optional[str] = None
-    tool_calls: Optional[list[ToolCallsMessage]] = None
+    tool_calls: Optional[list[ChatCompletionMessageToolCall]] = None
 
 
 class ChatCompletionResponseChoice(BaseModel):
@@ -225,17 +225,17 @@ class ChatCompletionResponse(BaseModel):
     usage: UsageInfo
 
 
-class ToolCallsDelta(BaseModel):
+class ChoiceDeltaToolCall(BaseModel):
     index: int
     id: str
     type: str
-    function: FunctionCall
+    function: Function
 
 
 class DeltaMessage(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
-    tool_calls: Optional[list[ToolCallsDelta]] = None
+    tool_calls: Optional[list[ChoiceDeltaToolCall]] = None
 
 
 class ChatCompletionResponseStreamChoice(BaseModel):
