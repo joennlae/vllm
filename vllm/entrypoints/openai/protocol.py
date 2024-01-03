@@ -1,7 +1,7 @@
 # Adapted from
 # https://github.com/lm-sys/FastChat/blob/168ccc29d3f7edc50823016105c024fe2282732a/fastchat/protocol/openai_api_protocol.py
 import time
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -38,12 +38,12 @@ class ModelCard(BaseModel):
     owned_by: str = "vllm"
     root: Optional[str] = None
     parent: Optional[str] = None
-    permission: List[ModelPermission] = Field(default_factory=list)
+    permission: list[ModelPermission] = Field(default_factory=list)
 
 
 class ModelList(BaseModel):
     object: str = "list"
-    data: List[ModelCard] = Field(default_factory=list)
+    data: list[ModelCard] = Field(default_factory=list)
 
 
 class UsageInfo(BaseModel):
@@ -52,37 +52,94 @@ class UsageInfo(BaseModel):
     completion_tokens: Optional[int] = 0
 
 
+class FunctionCall(BaseModel):
+    name: str
+    arguments: str
+
+
+class ToolCallsMessage(BaseModel):
+    id: str
+    type: str
+    function: FunctionCall
+
+
+class ChatCompletionFunctionDef(BaseModel):
+    name: str
+    description: str
+    parameters: Optional[Any] = None
+    # See : https://json-schema.org/understanding-json-schema/reference/object
+
+
+class ChatCompletionToolParam(BaseModel):
+    type: str = "function"
+    function: ChatCompletionFunctionDef = None
+
+
+class ChatCompletionSystemMessage(BaseModel):
+    role: Literal["system"]
+    content: str
+    name: Optional[str] = None
+
+
+class ChatCompletionUserMessage(BaseModel):
+    role: Literal["user"]
+    content: Union[str, list[str]]
+    name: Optional[str] = None
+
+
+class ChatCompletionAssistantMessage(BaseModel):
+    role: Literal["assistant"]
+    content: Optional[str] = None
+    name: Optional[str] = None
+    tool_calls: Optional[list[ToolCallsMessage]] = None
+
+
+class ChatCompletionToolMessage(BaseModel):
+    role: Literal["tool"]
+    content: str
+    tool_call_id: str
+
+
 class ChatCompletionRequest(BaseModel):
     model: str
-    messages: Union[str, List[Dict[str, str]]]
+    messages: list[
+        Union[
+            ChatCompletionToolMessage,
+            ChatCompletionAssistantMessage,
+            ChatCompletionUserMessage,
+            ChatCompletionSystemMessage,
+        ]
+    ]
     temperature: Optional[float] = 0.7
     top_p: Optional[float] = 1.0
     n: Optional[int] = 1
     max_tokens: Optional[int] = None
-    stop: Optional[Union[str, List[str]]] = Field(default_factory=list)
+    stop: Optional[Union[str, list[str]]] = Field(default_factory=list)
     stream: Optional[bool] = False
     presence_penalty: Optional[float] = 0.0
     frequency_penalty: Optional[float] = 0.0
-    logit_bias: Optional[Dict[str, float]] = None
+    logit_bias: Optional[dict[str, float]] = None
     user: Optional[str] = None
     # Additional parameters supported by vLLM
     best_of: Optional[int] = None
     top_k: Optional[int] = -1
     ignore_eos: Optional[bool] = False
     use_beam_search: Optional[bool] = False
-    stop_token_ids: Optional[List[int]] = Field(default_factory=list)
+    stop_token_ids: Optional[list[int]] = Field(default_factory=list)
     skip_special_tokens: Optional[bool] = True
     spaces_between_special_tokens: Optional[bool] = True
     add_generation_prompt: Optional[bool] = True
     echo: Optional[bool] = False
     repetition_penalty: Optional[float] = 1.0
     min_p: Optional[float] = 0.0
+    tools: Optional[list[ChatCompletionToolParam]] = None
+    tool_choice: Optional[str] = None
 
 
 class CompletionRequest(BaseModel):
     model: str
     # a string, array of strings, array of tokens, or array of token arrays
-    prompt: Union[List[int], List[List[int]], str, List[str]]
+    prompt: Union[list[int], list[list[int]], str, list[str]]
     suffix: Optional[str] = None
     max_tokens: Optional[int] = 16
     temperature: Optional[float] = 1.0
@@ -91,17 +148,17 @@ class CompletionRequest(BaseModel):
     stream: Optional[bool] = False
     logprobs: Optional[int] = None
     echo: Optional[bool] = False
-    stop: Optional[Union[str, List[str]]] = Field(default_factory=list)
+    stop: Optional[Union[str, list[str]]] = Field(default_factory=list)
     presence_penalty: Optional[float] = 0.0
     frequency_penalty: Optional[float] = 0.0
     best_of: Optional[int] = None
-    logit_bias: Optional[Dict[str, float]] = None
+    logit_bias: Optional[dict[str, float]] = None
     user: Optional[str] = None
     # Additional parameters supported by vLLM
     top_k: Optional[int] = -1
     ignore_eos: Optional[bool] = False
     use_beam_search: Optional[bool] = False
-    stop_token_ids: Optional[List[int]] = Field(default_factory=list)
+    stop_token_ids: Optional[list[int]] = Field(default_factory=list)
     skip_special_tokens: Optional[bool] = True
     spaces_between_special_tokens: Optional[bool] = True
     repetition_penalty: Optional[float] = 1.0
@@ -109,10 +166,10 @@ class CompletionRequest(BaseModel):
 
 
 class LogProbs(BaseModel):
-    text_offset: List[int] = Field(default_factory=list)
-    token_logprobs: List[Optional[float]] = Field(default_factory=list)
-    tokens: List[str] = Field(default_factory=list)
-    top_logprobs: Optional[List[Optional[Dict[int, float]]]] = None
+    text_offset: list[int] = Field(default_factory=list)
+    token_logprobs: list[Optional[float]] = Field(default_factory=list)
+    tokens: list[str] = Field(default_factory=list)
+    top_logprobs: Optional[list[Optional[dict[int, float]]]] = None
 
 
 class CompletionResponseChoice(BaseModel):
@@ -127,7 +184,7 @@ class CompletionResponse(BaseModel):
     object: str = "text_completion"
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
-    choices: List[CompletionResponseChoice]
+    choices: list[CompletionResponseChoice]
     usage: UsageInfo
 
 
@@ -143,19 +200,20 @@ class CompletionStreamResponse(BaseModel):
     object: str = "text_completion"
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
-    choices: List[CompletionResponseStreamChoice]
+    choices: list[CompletionResponseStreamChoice]
     usage: Optional[UsageInfo]
 
 
 class ChatMessage(BaseModel):
     role: str
-    content: str
+    content: Optional[str] = None
+    tool_calls: Optional[list[ToolCallsMessage]] = None
 
 
 class ChatCompletionResponseChoice(BaseModel):
     index: int
     message: ChatMessage
-    finish_reason: Optional[Literal["stop", "length"]] = None
+    finish_reason: Optional[Literal["stop", "length", "tool_calls"]] = None
 
 
 class ChatCompletionResponse(BaseModel):
@@ -163,19 +221,27 @@ class ChatCompletionResponse(BaseModel):
     object: str = "chat.completion"
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
-    choices: List[ChatCompletionResponseChoice]
+    choices: list[ChatCompletionResponseChoice]
     usage: UsageInfo
+
+
+class ToolCallsDelta(BaseModel):
+    index: int
+    id: str
+    type: str
+    function: FunctionCall
 
 
 class DeltaMessage(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
+    tool_calls: Optional[list[ToolCallsDelta]] = None
 
 
 class ChatCompletionResponseStreamChoice(BaseModel):
     index: int
     delta: DeltaMessage
-    finish_reason: Optional[Literal["stop", "length"]] = None
+    finish_reason: Optional[Literal["stop", "length", "tool_calls"]] = None
 
 
 class ChatCompletionStreamResponse(BaseModel):
@@ -183,6 +249,7 @@ class ChatCompletionStreamResponse(BaseModel):
     object: str = "chat.completion.chunk"
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
-    choices: List[ChatCompletionResponseStreamChoice]
+    choices: list[ChatCompletionResponseStreamChoice]
     usage: Optional[UsageInfo] = Field(
-        default=None, description="data about request and response")
+        default=None, description="data about request and response"
+    )
