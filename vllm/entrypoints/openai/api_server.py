@@ -261,6 +261,16 @@ async def create_chat_completion(request: ChatCompletionRequest,
         return create_error_response(HTTPStatus.BAD_REQUEST,
                                      "logit_bias is not currently supported")
 
+    print(
+        f"""
+
+[REQUEST]:
+============
+{request.model_dump_json(indent=2)}
+============
+
+"""
+    )
     try:
         prompt = tokenizer.apply_chat_template(
             conversation=request.messages,
@@ -269,7 +279,18 @@ async def create_chat_completion(request: ChatCompletionRequest,
     except Exception as e:
         logger.error(f"Error in applying chat template from request: {str(e)}")
         return create_error_response(HTTPStatus.BAD_REQUEST, str(e))
+    # print in blue
+    print(
+        f"""
 
+[CHAT COMPLETION REQUEST]:
+============
+\033[94m
+{prompt}
+============
+\033[0m
+"""
+    )
     token_ids, error_check_ret = await check_length(request, prompt=prompt)
     if error_check_ret is not None:
         return error_check_ret
@@ -394,6 +415,20 @@ async def create_chat_completion(request: ChatCompletionRequest,
                         model=model_name)
                     if final_usage is not None:
                         chunk.usage = final_usage
+                    # print in purple
+                    print(
+                        f"""
+
+[LLM Answer]:
+============
+\033[95m
+{output.text}
+\033[0m
+============
+Reason: {output.finish_reason}
+
+"""
+                    )
                     data = chunk.model_dump_json(exclude_unset=True,
                                       exclude_none=True)
                     yield f"data: {data}\n\n"
@@ -415,6 +450,20 @@ async def create_chat_completion(request: ChatCompletionRequest,
         choices = []
         role = get_role()
         for output in final_res.outputs:
+            # print in purple
+            print(
+                f"""
+
+[LLM Answer]:
+============
+\033[95m
+{output.text}
+\033[0m
+============
+Reason: {output.finish_reason}
+
+"""
+            )
             choice_data = ChatCompletionResponseChoice(
                 index=output.index,
                 message=ChatMessage(role=role, content=output.text),
