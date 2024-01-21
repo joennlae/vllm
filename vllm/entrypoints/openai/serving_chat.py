@@ -48,7 +48,13 @@ class OpenAIServingChat(OpenAIServing):
         error_check_ret = await self._check_model(request)
         if error_check_ret is not None:
             return error_check_ret
-
+        # print request
+        print(f"""
+[REQUEST]:
+============
+{request.model_dump_json(indent=2)}
+============
+""")
         try:
             prompt = self.tokenizer.apply_chat_template(
                 conversation=request.messages,
@@ -58,7 +64,15 @@ class OpenAIServingChat(OpenAIServing):
             logger.error(
                 f"Error in applying chat template from request: {str(e)}")
             return self.create_error_response(str(e))
-
+        # print prompt in blue
+        print(f"""
+[CHAT COMPLETION REQUEST]:
+============
+\033[94m
+{prompt}
+============
+\033[0m
+""")
         request_id = f"cmpl-{random_uuid()}"
         try:
             token_ids = self._validate_prompt_and_tokenize(request,
@@ -225,6 +239,16 @@ class OpenAIServingChat(OpenAIServing):
                             created=created_time,
                             choices=[choice_data],
                             model=model_name)
+                        # print in purple
+                        print(f"""
+[LLM Answer]:
+============
+\033[95m
+{output.text}
+\033[0m
+============
+Reason: {output.finish_reason}
+""")
                         if final_usage is not None:
                             chunk.usage = final_usage
                         data = chunk.model_dump_json(exclude_unset=True,
@@ -306,6 +330,17 @@ class OpenAIServingChat(OpenAIServing):
             choices=choices,
             usage=usage,
         )
+
+        # print in purple
+        print(f"""
+[LLM Answer]:
+============
+\033[95m
+{output.text}
+\033[0m
+============
+Reason: {output.finish_reason}
+""")
 
         return response
 
