@@ -39,7 +39,7 @@ async def lifespan(app: fastapi.FastAPI):
     async def _force_log():
         while True:
             await asyncio.sleep(10)
-            await engine.do_log_stats()
+            # await engine.do_log_stats()
 
     if not engine_args.disable_log_stats:
         asyncio.create_task(_force_log())
